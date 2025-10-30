@@ -34,6 +34,7 @@ function Questionnaire() {
     isProcessing: false
   });
   const [ragMetadata, setRagMetadata] = useState({}); // Store RAG info per question
+  const [expandedRagDetails, setExpandedRagDetails] = useState({}); // Track which RAG details are expanded
 
   // Section-Based Workflow State
   const [workflowMode, setWorkflowMode] = useState('section-based'); // 'per-question' or 'section-based'
@@ -237,7 +238,7 @@ function Questionnaire() {
           });
 
           // Process RAG metadata from section-based workflow
-          // The format is: rag_metadata = { "SEC_BS": { retrieval_time, total_chunks, sources, ... }, ... }
+          // The format is: rag_metadata = { "SEC_BS": { retrieval_time, total_chunks, sources, source_details, ... }, ... }
           // We need to map this to individual questions based on their section
           if (rag_metadata) {
             Object.keys(predictions || {}).forEach(qId => {
@@ -250,6 +251,7 @@ function Questionnaire() {
                 newRagMetadata[qId] = {
                   ragUsed: !sectionRag.error, // If no error, RAG was used
                   ragSources: sectionRag.sources || [],
+                  sourceDetails: sectionRag.source_details || [], // Enhanced source info
                   retrievalTime: sectionRag.retrieval_time,
                   totalChunks: sectionRag.total_chunks
                 };
@@ -595,6 +597,13 @@ function Questionnaire() {
     }));
   };
 
+  const toggleRagDetails = (questionId) => {
+    setExpandedRagDetails(prev => ({
+      ...prev,
+      [questionId]: !prev[questionId]
+    }));
+  };
+
   const handleSubmit = async () => {
     try {
       setGeneratingSummary(true);
@@ -637,24 +646,81 @@ function Questionnaire() {
 
     return (
       <div key={question.id} className="question-card">
-        {/* RAG Source Indicator */}
+        {/* RAG Source Indicator - Enhanced */}
         {ragMetadata[question.id]?.ragUsed && (
           <div className="rag-sources-indicator">
             <div className="rag-sources-header">
               <span className="rag-icon">📄</span>
               <span className="rag-label">Based on AWS Documentation:</span>
             </div>
-            <div className="rag-sources-list">
-              {ragMetadata[question.id].ragSources.map((source, idx) => (
-                <span key={idx} className="rag-source-badge">
-                  {source}
-                </span>
-              ))}
-            </div>
-            {ragMetadata[question.id].retrievalTime && (
-              <div className="rag-retrieval-time-only">
-                ⏱️ {ragMetadata[question.id].retrievalTime.toFixed(2)}s
+
+            {/* Primary Source Display */}
+            {ragMetadata[question.id].sourceDetails && ragMetadata[question.id].sourceDetails.length > 0 ? (
+              <div className="rag-enhanced-display">
+                {/* First source (most relevant) */}
+                <div className="rag-primary-source">
+                  <div className="rag-source-name">
+                    <span className="rag-source-badge-primary">{ragMetadata[question.id].sourceDetails[0].name}</span>
+                    <button
+                      className="rag-show-details-btn"
+                      onClick={() => toggleRagDetails(question.id)}
+                    >
+                      {expandedRagDetails[question.id] ? '▲ Hide Details' : '▼ Show Details'}
+                    </button>
+                  </div>
+
+                  {/* Metadata row */}
+                  <div className="rag-metadata-row">
+                    <span className="rag-meta-item">
+                      Retrieved: {ragMetadata[question.id].totalChunks || ragMetadata[question.id].sourceDetails[0].chunk_count} relevant passages
+                    </span>
+                    {ragMetadata[question.id].retrievalTime && (
+                      <span className="rag-meta-item">
+                        ⏱️ {ragMetadata[question.id].retrievalTime.toFixed(2)}s
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Expandable Details */}
+                  {expandedRagDetails[question.id] && (
+                    <div className="rag-details-expanded">
+                      <div className="rag-detail-label">📌 Most Relevant Match:</div>
+                      <div className="rag-match-text">
+                        "{ragMetadata[question.id].sourceDetails[0].top_match_text}"
+                      </div>
+
+                      {/* Additional sources if available */}
+                      {ragMetadata[question.id].sourceDetails.length > 1 && (
+                        <div className="rag-additional-sources">
+                          <div className="rag-detail-label">Additional Sources:</div>
+                          {ragMetadata[question.id].sourceDetails.slice(1).map((source, idx) => (
+                            <div key={idx} className="rag-additional-source-item">
+                              <span className="rag-source-badge-secondary">{source.name}</span>
+                              <span className="rag-chunk-count">({source.chunk_count} passage{source.chunk_count > 1 ? 's' : ''})</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
+            ) : (
+              /* Fallback to simple display if no source_details */
+              <>
+                <div className="rag-sources-list">
+                  {ragMetadata[question.id].ragSources.map((source, idx) => (
+                    <span key={idx} className="rag-source-badge">
+                      {source}
+                    </span>
+                  ))}
+                </div>
+                {ragMetadata[question.id].retrievalTime && (
+                  <div className="rag-retrieval-time-only">
+                    ⏱️ {ragMetadata[question.id].retrievalTime.toFixed(2)}s
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

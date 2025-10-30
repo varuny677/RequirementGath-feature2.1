@@ -125,6 +125,7 @@ class SectionAnalysisWorkflow:
                     'total_chunks': len(self._rag_chunks),
                     'retrieval_time': rag_result.get('retrieval_time', 0),
                     'sources': rag_result.get('sources', []),
+                    'source_details': rag_result.get('source_details', []),  # Enhanced source info
                     'section_query': rag_result.get('section_query', '')
                 }
                 workflow.logger.info(

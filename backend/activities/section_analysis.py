@@ -139,6 +139,25 @@ async def retrieve_section_chunks(
             chunks = result.get('chunks', [])
             sources = rag_client.extract_sources(chunks)
 
+            # Extract detailed source information
+            source_details = []
+            for source in sources:
+                # Get chunks from this source
+                source_chunks = [c for c in chunks if c.get('source') == source]
+
+                # Get top matching chunk from this source
+                top_chunk = max(source_chunks, key=lambda c: c.get('similarity', 0)) if source_chunks else None
+
+                source_details.append({
+                    "name": source,
+                    "chunk_count": len(source_chunks),
+                    "top_match_text": top_chunk.get('content', '')[:200] + "..." if top_chunk and len(top_chunk.get('content', '')) > 200 else top_chunk.get('content', '') if top_chunk else "",
+                    "top_similarity": top_chunk.get('similarity', 0) if top_chunk else 0
+                })
+
+            # Sort by similarity (highest first)
+            source_details.sort(key=lambda x: x['top_similarity'], reverse=True)
+
             activity.logger.info(
                 f"Retrieved {len(chunks)} chunks from {len(sources)} sources "
                 f"in {result.get('retrieval_time', 0):.2f}s"
@@ -148,6 +167,7 @@ async def retrieve_section_chunks(
                 "success": True,
                 "chunks": chunks,
                 "sources": sources,
+                "source_details": source_details,  # Enhanced metadata
                 "retrieval_time": result.get('retrieval_time', 0),
                 "section_query": result.get('section_query', ''),
                 "total_chunks": len(chunks)
