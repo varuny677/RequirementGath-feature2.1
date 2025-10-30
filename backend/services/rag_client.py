@@ -320,12 +320,12 @@ class RAGClient:
         Returns:
             Formatted section query string
         """
-        # Extract company info from nested 'data' structure
-        # The company_data has structure: {"success": True, "company_name": "...", "data": {...}}
-        company_name = company_data.get('company_name', 'Unknown')
+        # Extract company information from company_data
+        # The company_data has structure: {"Company name": "...", "Sector": "...", ...}
+        company_name = company_data.get('Company name', 'Unknown')
 
-        # Get the nested data object
-        company_info = company_data.get('data', {})
+        # company_data is already the flat object with all fields
+        company_info = company_data
 
         # Extract fields from nested structure
         sector = company_info.get('Sector', 'Unknown')

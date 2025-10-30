@@ -258,12 +258,12 @@ def _build_batch_prediction_prompt(
 ) -> str:
     """Build comprehensive prompt for batch prediction."""
 
-    # Extract company information from nested 'data' structure
-    # The company_data has structure: {"success": True, "company_name": "...", "data": {...}}
-    company_name = company_data.get('company_name', 'Unknown')
+    # Extract company information from company_data
+    # The company_data has structure: {"Company name": "...", "Sector": "...", ...}
+    company_name = company_data.get('Company name', 'Unknown')
 
-    # Get the nested data object
-    company_info = company_data.get('data', {})
+    # company_data is already the flat object with all fields
+    company_info = company_data
 
     # Extract fields from nested structure (with actual field names from Gemini)
     sector = company_info.get('Sector', 'Unknown')
@@ -564,10 +564,11 @@ async def generate_section_context(
     section_title: str,
     predictions: Dict[str, Any],
     reasoning: Dict[str, str],
-    previous_context: str
+    previous_context: str,
+    all_section_questions: List[Dict[str, Any]] = None
 ) -> str:
     """
-    Generate updated context summary for next section.
+    Generate updated context summary for next section with question text and reasoning.
 
     Args:
         section_id: Section identifier
@@ -575,43 +576,59 @@ async def generate_section_context(
         predictions: Section predictions
         reasoning: Section reasoning
         previous_context: Context from previous sections
+        all_section_questions: List of all question objects in this section (optional)
 
     Returns:
-        Updated context string
+        Updated context string with format: "Q_ID: Question text → Answer"
     """
-    activity.logger.info(f"Generating context for section {section_id}")
+    activity.logger.info(f"Generating enhanced context for section {section_id}")
 
     try:
-        # Use context manager to build context
-        # Note: This is a simplified version - in production you'd use PredictionContext
+        # Build question ID to question text mapping
+        question_text_map = {}
+        if all_section_questions:
+            for q in all_section_questions:
+                question_text_map[q['id']] = q.get('question', '')
+
         context_parts = []
 
         # Add current section
         context_parts.append(f"[Section: {section_title}]")
+
         for qid, answer in predictions.items():
+            # Format answer
             if isinstance(answer, list):
                 answer_str = ", ".join(str(a) for a in answer)
             else:
                 answer_str = str(answer)
 
-            context_parts.append(f"- {qid}: {answer_str}")
+            # Get question text if available
+            question_text = question_text_map.get(qid, '')
 
-            # Add reasoning if short
+            if question_text:
+                # Enhanced format: "Q_ID: Question text → Answer"
+                context_parts.append(f"- {qid}: {question_text} → {answer_str}")
+            else:
+                # Fallback to old format if question text not available
+                context_parts.append(f"- {qid}: {answer_str}")
+
+            # Add condensed reasoning (max 150 characters)
             reason = reasoning.get(qid, '')
-            if reason and len(reason) < 150:
-                context_parts.append(f"  Reasoning: {reason}")
+            if reason:
+                condensed_reasoning = reason[:150] + "..." if len(reason) > 150 else reason
+                context_parts.append(f"  (Reasoning: {condensed_reasoning})")
 
         current_section_context = "\n".join(context_parts)
 
-        # Combine with previous context (keep limited)
+        # Combine with previous context (keep limited to last 2000 chars for better context)
         if previous_context:
-            # Limit previous context to ~1000 chars
-            limited_previous = previous_context[-1000:] if len(previous_context) > 1000 else previous_context
+            # Limit previous context to ~2000 chars to maintain more history
+            limited_previous = previous_context[-2000:] if len(previous_context) > 2000 else previous_context
             full_context = f"{limited_previous}\n\n{current_section_context}"
         else:
             full_context = current_section_context
 
-        activity.logger.info(f"Generated context: {len(full_context)} characters")
+        activity.logger.info(f"Generated enhanced context: {len(full_context)} characters")
 
         return full_context
 

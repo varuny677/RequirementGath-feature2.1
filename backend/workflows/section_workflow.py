@@ -175,7 +175,7 @@ class SectionAnalysisWorkflow:
                 "Section may have incomplete predictions."
             )
 
-        # Step 4: Generate section context summary
+        # Step 4: Generate section context summary with question text
         updated_context = await workflow.execute_activity(
             generate_section_context,
             args=[
@@ -183,7 +183,8 @@ class SectionAnalysisWorkflow:
                 self._section_title,
                 self._wave_state.predictions,
                 self._wave_state.reasoning,
-                previous_context
+                previous_context,
+                self._all_section_questions  # Pass questions for enhanced context
             ],
             start_to_close_timeout=timedelta(seconds=10)
         )
